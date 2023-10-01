@@ -4,6 +4,7 @@ using ETicaretAPI.Application.RequestParameters;
 using ETicaretAPI.Application.ViewModels.Products;
 using ETicaretAPI.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 
 namespace ETicaretAPI.API.Controllers
@@ -16,6 +17,7 @@ namespace ETicaretAPI.API.Controllers
         readonly IProductWriteRepository _productWriteRepository;
         readonly IProductReadRepository _productReadRepository;
         public IWebHostEnvironment _webHostEnvironment { get; }
+        public IConfiguration _configuration { get; }
 
         readonly IFileReadRepository _fileReadRepository;
         readonly IFileWriteRepository _fileWriteRepository;
@@ -24,7 +26,7 @@ namespace ETicaretAPI.API.Controllers
         readonly IInvoiceFileReadRepository _invoiceFileReadRepository;
         readonly IInvoiceFileWriteRepository _invoiceFileWriteRepository;
         readonly IStorageService _storageService;
-        public ProductController(IProductWriteRepository productWriteRepository, IProductReadRepository productReadRepository, IWebHostEnvironment webHostEnvironment, IFileReadRepository fileReadRepository, IFileWriteRepository fileWriteRepository, IProductImageFileReadRepository productImageFileReadRepository, IProductImageFileWriteRepository productImageFileWriteRepository, IInvoiceFileReadRepository invoiceFileReadRepository, IInvoiceFileWriteRepository invoiceFileWriteRepository, IStorageService storageService)
+        public ProductController(IProductWriteRepository productWriteRepository, IProductReadRepository productReadRepository, IWebHostEnvironment webHostEnvironment, IFileReadRepository fileReadRepository, IFileWriteRepository fileWriteRepository, IProductImageFileReadRepository productImageFileReadRepository, IProductImageFileWriteRepository productImageFileWriteRepository, IInvoiceFileReadRepository invoiceFileReadRepository, IInvoiceFileWriteRepository invoiceFileWriteRepository, IStorageService storageService, IConfiguration configuration)
         {
             _productWriteRepository = productWriteRepository;
             _productReadRepository = productReadRepository;
@@ -36,6 +38,7 @@ namespace ETicaretAPI.API.Controllers
             _invoiceFileReadRepository = invoiceFileReadRepository;
             _invoiceFileWriteRepository = invoiceFileWriteRepository;
             _storageService = storageService;
+            _configuration = configuration;
         }
 
         [HttpGet]
@@ -96,18 +99,36 @@ namespace ETicaretAPI.API.Controllers
         }
 
         [HttpPost("[action]")]
-        public async Task<IActionResult> Upload()
+        public async Task<IActionResult> Upload(string id)
         {
-            var datas = await _storageService.UploadAsync("files", Request.Form.Files);
-            await _productImageFileWriteRepository.AddRangeAsync(datas.Select(d => new ProductImageFile()
+            List<(string fileName, string pathOrContainerName)> result = await _storageService.UploadAsync("photo-images", Request.Form.Files);
+            Product product = await _productReadRepository.GetByIdAsync(id);
+
+            await _productImageFileWriteRepository.AddRangeAsync(result.Select(d => new ProductImageFile()
             {
                 FileName = d.fileName,
                 Path = d.pathOrContainerName,
-                Storage = _storageService.StorageName
+                Storage = _storageService.StorageName,
+                Products = new List<Product>() { product }
             }).ToList());
+
             await _productImageFileWriteRepository.SaveAsync();
 
             return Ok();
+        }
+
+        [HttpGet("[action]/{id}")]
+        public async Task<IActionResult> GetProductImages(string id)
+        {
+            Product? product = await _productReadRepository
+                .Table
+                .Include(x => x.ProductImageFiles)
+                .FirstOrDefaultAsync(p => p.Id == Guid.Parse(id));
+            return Ok(product?.ProductImageFiles.Select(p => new
+            {
+                path = $"{_configuration["BaseStorageUrl"]}/{p.Path}",
+            }));
+
         }
 
     }
