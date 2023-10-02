@@ -6,9 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ETicaretAPI.Application.Features.Queries.GetAllProduct
+namespace ETicaretAPI.Application.Features.Queries.Products.GetAllProduct
 {
-    public class GetAllProductQueryRequest:IRequest<GetAllProductQueryResponse>
+    public class GetAllProductQueryRequest : IRequest<GetAllProductQueryResponse>
     {
         //public Pagination Pagination { get; set; }
         public int Page { get; set; } = 0;
